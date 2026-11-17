@@ -7,12 +7,9 @@
  * que mantenha a variavel global linha_atual (TP1, secao 4.4). Sem
  * alteracoes, o lexema de cada token e o texto reconhecido (microc_yytext).
  *
- * TODO(aluno): adaptar os pontos marcados ao seu TP1, para que
- *   - ID e constantes usem o texto do Symbol (microc_yylval.symbol), ja
- *     com as sequencias de escape convertidas (TP1, secao 4.3);
- *   - UNDEF traga a mensagem de microc_yylval.error_msg
- *     ("String nao terminada", "EOF em comentario" etc.);
- *   - scanner_finalizar libere a tabela de strings.
+ * Adaptado ao TP1: ID e constantes usam o texto do Symbol (com os escapes
+ * ja convertidos), UNDEF traz a mensagem de microc_yylval.error_msg e
+ * scanner_finalizar libera as tabelas de strings.
  */
 #include <stdio.h>
 #include <string.h>
@@ -26,14 +23,21 @@ extern int   linha_atual;
 extern int   microc_yylex_destroy(void);
 
 /* Texto a guardar em Token.lexema para o token que microc_yylex acabou
- * de devolver. */
+ * de devolver: o valor da tabela de strings para ID e constantes, a
+ * mensagem de erro para UNDEF e o proprio texto reconhecido nos demais. */
 static const char *texto_do_lexema(int tipo)
 {
-    /* TODO(aluno): para ID, INTEGERCONST, CHARCONST e STRINGCONST, devolva
-     * o texto do Symbol em microc_yylval.symbol; para UNDEF, devolva
-     * microc_yylval.error_msg. */
-    (void) tipo;
-    return microc_yytext;
+    switch (tipo) {
+    case ID:
+    case INTEGERCONST:
+    case CHARCONST:
+    case STRINGCONST:
+        return microc_yylval.symbol->texto;
+    case UNDEF:
+        return microc_yylval.error_msg;
+    default:
+        return microc_yytext;
+    }
 }
 
 /* O TP1 permite que tokens de um caractere sejam devolvidos pelo proprio
@@ -95,6 +99,6 @@ Token proximo_token(void)
 
 void scanner_finalizar(void)
 {
-    /* TODO(aluno): liberar tambem a tabela de strings do TP1. */
-    microc_yylex_destroy();
+    microc_yylex_destroy();       /* buffers internos do flex */
+    libera_memoria_scanner();     /* tabelas de strings do TP1 */
 }
