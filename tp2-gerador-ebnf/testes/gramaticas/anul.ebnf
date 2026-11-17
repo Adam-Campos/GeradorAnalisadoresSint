@@ -1,0 +1,11 @@
+TOKENS
+  X = /x/ ;
+  SKIP = /[ ]+/ ;
+RULES
+  a = b c ;
+  b = [ "x" ] ;
+  c = { "y" } ;
+  d = "z" b ;
+  e = d | ;
+  f = ( b c ) { "w" } [ X ] ;
+  g = "q" | b "r" ;
