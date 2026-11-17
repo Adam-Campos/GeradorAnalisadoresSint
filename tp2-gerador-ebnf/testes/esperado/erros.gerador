@@ -1,0 +1,5 @@
+testes/gramaticas/erros.ebnf:5:14: erro: esperado ')', encontrado ';'
+testes/gramaticas/erros.ebnf:6:12: erro: esperado ']', encontrado '}'
+testes/gramaticas/erros.ebnf:7:10: erro: esperado ';', encontrado ')'
+testes/gramaticas/erros.ebnf:9:6: erro: esperado ';', encontrado '='
+status 1
