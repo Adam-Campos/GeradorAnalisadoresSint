@@ -68,36 +68,158 @@ static int verif_terminais(Gramatica *g, int modo_microc)
 /* A implementar                                                      */
 /* ------------------------------------------------------------------ */
 
-/* TODO(aluno): emitir um AVISO para cada nao terminal que nao pode ser
- * alcancado a partir do simbolo inicial (g->inicial). Sugestao: marque
- * o inicial e, ate um ponto fixo, marque todo nao terminal que aparece
- * na regra de um nao terminal ja marcado (expr_percorrer ajuda). */
+/* Marca em marca[] todo nao terminal que aparece em e. */
+static void marcar_usos(Expr *e, void *ctx)
+{
+    if (e->tipo == E_NAOTERM)
+        ((int *) ctx)[e->simbolo] = 1;
+}
+
+static int contar(const int *v, int n)
+{
+    int i, total = 0;
+    for (i = 0; i < n; i++)
+        total += v[i] != 0;
+    return total;
+}
+
+/* Aviso para cada nao terminal inalcancavel a partir do simbolo inicial. */
 static int verif_inalcancaveis(Gramatica *g)
 {
-    (void) g;
+    int i, antes, depois;
+    int *alc = (int *) xcalloc((size_t) g->nnts, sizeof(int));
+
+    alc[g->inicial] = 1;
+    do {
+        antes = contar(alc, g->nnts);
+        for (i = 0; i < g->nnts; i++)
+            if (alc[i])
+                expr_percorrer(g->nts[i].regra, marcar_usos, alc);
+        depois = contar(alc, g->nnts);
+    } while (depois != antes);
+
+    for (i = 0; i < g->nnts; i++)
+        if (!alc[i])
+            diag_aviso(g->nts[i].linha_def, 0,
+                       "nao terminal %s inalcancavel a partir do simbolo inicial",
+                       g->nts[i].nome);
+    free(alc);
     return 0;
 }
 
-/* TODO(aluno): emitir um ERRO para cada nao terminal definido que nao
- * deriva nenhuma cadeia de terminais. Ponto fixo: um nao terminal e
- * produtivo se sua regra for produtiva, onde terminais, E_VAZIO, [..] e
- * {..} sao produtivos, uma sequencia exige todos os filhos produtivos
- * e uma alternativa exige ao menos um. Retorne o numero de erros. */
+/* se a expressao deriva alguma cadeia de terminais, dado prod[]. */
+static int produtiva(const Expr *e, const int *prod)
+{
+    int i, todos, algum;
+
+    switch (e->tipo) {
+    case E_TERM:
+    case E_VAZIO:
+    case E_OPC:
+    case E_REP:
+        return 1;
+    case E_NAOTERM:
+        return prod[e->simbolo];
+    case E_SEQ:
+        todos = 1;
+        for (i = 0; i < e->nfilhos; i++)
+            if (!produtiva(e->filhos[i], prod))
+                todos = 0;
+        return todos;
+    case E_ALT:
+        algum = 0;
+        for (i = 0; i < e->nfilhos; i++)
+            if (produtiva(e->filhos[i], prod))
+                algum = 1;
+        return algum;
+    }
+    return 0;
+}
+
+/* Erro para cada nao terminal que nao deriva nenhuma cadeia de terminais. */
 static int verif_improdutivos(Gramatica *g)
 {
-    (void) g;
-    return 0;
+    int i, mudou, erros = 0;
+    int *prod = (int *) xcalloc((size_t) g->nnts, sizeof(int));
+
+    do {
+        mudou = 0;
+        for (i = 0; i < g->nnts; i++)
+            if (!prod[i] && produtiva(g->nts[i].regra, prod)) {
+                prod[i] = 1;
+                mudou = 1;
+            }
+    } while (mudou);
+
+    for (i = 0; i < g->nnts; i++)
+        if (!prod[i]) {
+            diag_erro(g->nts[i].linha_def, 0,
+                      "nao terminal %s e improdutivo: nao deriva nenhuma cadeia "
+                      "de terminais", g->nts[i].nome);
+            erros++;
+        }
+    free(prod);
+    return erros;
 }
 
-/* TODO(aluno): detectar recursao a esquerda direta (a = a ...) e
- * indireta (a = b ... ; b = a ...), inclusive atraves de prefixos
- * anulaveis (a = [ x ] a ...). Use o campo anulavel de Expr, ja
- * calculado quando esta funcao e chamada. Reporte um erro por nao
- * terminal recursivo e retorne o numero de erros. */
+/* Marca em linha[] os nao terminais que podem aparecer no INICIO de uma
+ * derivacao de e. */
+static void cabecas(const Expr *e, char *linha)
+{
+    int i;
+
+    switch (e->tipo) {
+    case E_NAOTERM:
+        linha[e->simbolo] = 1;
+        break;
+    case E_SEQ:
+        for (i = 0; i < e->nfilhos; i++) {
+            cabecas(e->filhos[i], linha);
+            if (!e->filhos[i]->anulavel)
+                break;
+        }
+        break;
+    case E_ALT:
+    case E_OPC:
+    case E_REP:
+        for (i = 0; i < e->nfilhos; i++)
+            cabecas(e->filhos[i], linha);
+        break;
+    case E_TERM:
+    case E_VAZIO:
+        break;
+    }
+}
+
+/* Recursao a esquerda */
 int verif_recursao_esquerda(Gramatica *g)
 {
-    (void) g;
-    return 0;
+    int i, j, k, n = g->nnts, erros = 0;
+    char *alcance = (char *) xcalloc((size_t) n * (size_t) n, 1);
+    char *direta = (char *) xcalloc((size_t) n, 1);
+
+    for (i = 0; i < n; i++) {
+        cabecas(g->nts[i].regra, alcance + (size_t) i * (size_t) n);
+        direta[i] = alcance[(size_t) i * (size_t) n + (size_t) i];
+    }
+    for (k = 0; k < n; k++)
+        for (i = 0; i < n; i++)
+            if (alcance[(size_t) i * (size_t) n + (size_t) k])
+                for (j = 0; j < n; j++)
+                    if (alcance[(size_t) k * (size_t) n + (size_t) j])
+                        alcance[(size_t) i * (size_t) n + (size_t) j] = 1;
+
+    for (i = 0; i < n; i++) {
+        if (!alcance[(size_t) i * (size_t) n + (size_t) i])
+            continue;
+        diag_erro(g->nts[i].linha_def, 0,
+                  "nao terminal %s tem recursao a esquerda %s",
+                  g->nts[i].nome, direta[i] ? "direta" : "indireta");
+        erros++;
+    }
+    free(alcance);
+    free(direta);
+    return erros;
 }
 
 int verif_basica(Gramatica *g, int modo_microc)
