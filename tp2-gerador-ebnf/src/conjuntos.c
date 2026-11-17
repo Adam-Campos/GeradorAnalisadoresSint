@@ -68,9 +68,64 @@ void conj_imprimir(FILE *f, const Gramatica *g)
  *   E_ALT: 1 se algum filho for anulavel
  *   E_OPC, E_REP: 1 (calcule tambem o do filho)
  * Repita ate nada mudar. */
+
+static int anul_expr(const Gramatica *g, Expr *e, int *mudou)
+{
+    int i, v = 0, filho;
+
+    switch (e->tipo) {
+    case E_TERM:
+        v = 0;
+        break;
+    case E_VAZIO:
+        v = 1;
+        break;
+    case E_NAOTERM:
+        v = g->nts[e->simbolo].anulavel;
+        break;
+    case E_SEQ:
+        v = 1;
+        for (i = 0; i < e->nfilhos; i++) {
+            filho = anul_expr(g, e->filhos[i], mudou);
+            if (!filho)
+                v = 0;
+        }
+        break;
+    case E_ALT:
+        v = 0;
+        for (i = 0; i < e->nfilhos; i++) {
+            filho = anul_expr(g, e->filhos[i], mudou);
+            if (filho)
+                v = 1;
+        }
+        break;
+    case E_OPC:
+    case E_REP:
+        anul_expr(g, e->filhos[0], mudou);
+        v = 1;
+        break;
+    }
+    if (v != e->anulavel) {
+        e->anulavel = v;
+        *mudou = 1;
+    }
+    return v;
+}
+
 void conj_anulavel(Gramatica *g)
 {
-    (void) g;
+    int i, v, mudou;
+
+    do {
+        mudou = 0;
+        for (i = 0; i < g->nnts; i++) {
+            v = anul_expr(g, g->nts[i].regra, &mudou);
+            if (v != g->nts[i].anulavel) {
+                g->nts[i].anulavel = v;
+                mudou = 1;
+            }
+        }
+    } while (mudou); 
 }
 
 /* TODO(aluno): calcular e->first para cada no Expr e g->nts[i].first.
