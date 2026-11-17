@@ -27,6 +27,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "automato.h"
 #include "codegen.h"
 #include "microc_mapa.h"
 #include "util.h"
@@ -272,6 +273,8 @@ static void emit_erro(Emissor *em, const Bitset *esperados)
 
 static void gen_expr(Emissor *em, const Gramatica *g, const Expr *e)
 {
+    int i, primeiro;
+    const Expr *f, *anulavel = NULL;
 
     switch (e->tipo) {
     case E_TERM:
@@ -280,28 +283,58 @@ static void gen_expr(Emissor *em, const Gramatica *g, const Expr *e)
     case E_NAOTERM:
         emit(em, "parse_%s();", g->nts[e->simbolo].nome);
         break;
-    /*
-     * TODO(aluno): traduzir as demais construcoes (secao 4):
-     *
-     *   E_SEQ   a1 a2 ... an   ->  gen_expr de cada filho, em ordem
-     *   E_ALT   a1 | ... | an  ->  if (FIRST(a1)) {...} else if ... else erro
-     *   E_OPC   [ a ]          ->  if (FIRST(a)) { ... }
-     *   E_REP   { a }          ->  while (FIRST(a)) { ... }
-     *   E_VAZIO                ->  nada
-     *
-     * Ferramentas disponiveis neste arquivo:
-     *   emit(em, fmt, ...)                 uma linha indentada
-     *   em->nivel++ / em->nivel--          indentacao dos blocos
-     *   emit_teste(em, "if (", g, &x->first, ") {")
-     *   emit_erro(em, &e->first)           erro_sintatico com os esperados
-     * Os conjuntos FIRST de cada no foram calculados em conjuntos.c.
-     * Uma alternativa anulavel nao tem teste: ela fica no else final,
-     * no lugar do erro.
-     */
-    default:
-        emit(em, "/* TODO(aluno): construcao ainda nao traduzida */");
-        (void) emit_teste;
-        (void) emit_erro;
+    case E_VAZIO:
+        break;
+    case E_SEQ:
+        for (i = 0; i < e->nfilhos; i++)
+            gen_expr(em, g, e->filhos[i]);
+        break;
+    case E_ALT:
+        /* if (FIRST(a1)) {...} else if (FIRST(a2)) {...} else {erro ou a anulavel} */
+        primeiro = 1;
+        for (i = 0; i < e->nfilhos; i++) {
+            f = e->filhos[i];
+            if (f->anulavel) {         /* no max. uma: vai no else final */
+                anulavel = f;
+                continue;
+            }
+            emit_teste(em, primeiro ? "if (" : "} else if (", g, &f->first, ") {");
+            em->nivel++;
+            gen_expr(em, g, f);
+            em->nivel--;
+            primeiro = 0;
+        }
+        if (anulavel == NULL) {
+            emit(em, "} else {");
+            em->nivel++;
+            emit_erro(em, &e->first);
+            em->nivel--;
+            emit(em, "}");
+        } else if (anulavel->tipo != E_VAZIO) {
+            emit(em, "} else {");
+            em->nivel++;
+            gen_expr(em, g, anulavel);
+            em->nivel--;
+            emit(em, "}");
+        } else {
+            emit(em, "}");
+        }
+        break;
+    case E_OPC:
+        f = e->filhos[0];
+        emit_teste(em, "if (", g, &f->first, ") {");
+        em->nivel++;
+        gen_expr(em, g, f);
+        em->nivel--;
+        emit(em, "}");
+        break;
+    case E_REP:
+        f = e->filhos[0];
+        emit_teste(em, "while (", g, &f->first, ") {");
+        em->nivel++;
+        gen_expr(em, g, f);
+        em->nivel--;
+        emit(em, "}");
         break;
     }
 }
@@ -317,20 +350,12 @@ static void gen_expr(Emissor *em, const Gramatica *g, const Expr *e)
  * Retorna 0 se a expressao for valida (senao reporte com diag_erro). */
 static int gen_casamento_regex(FILE *f, const char *nome, const char *regex)
 {
-    /* TODO(aluno): converter a expressao regular em automato finito
-     * deterministico (por exemplo: analisar a expressao, construir o AFN
-     * de Thompson e determiniza-lo pela construcao de subconjuntos) e
-     * emitir o automato como codigo C: um switch sobre o estado, com as
-     * transicoes por faixas de caracteres, guardando a ultima posicao em
-     * que o automato passou por um estado final. Subconjunto minimo:
-     * concatenacao, |, *, +, ?, parenteses, classes [a-z] e [^...], o
-     * ponto e escapes como \n, \t, \\ e \/.
-     *
-     * O stub abaixo nao reconhece nada. */
-    fprintf(f, "static size_t %s(const char *s)\n{\n", nome);
-    fputs("    /* TODO(aluno): automato para ", f);
-    emitir_comentario(f, regex);
-    fputs(" */\n    (void) s;\n    return 0;\n}\n\n", f);
+    const char *erro = NULL;
+
+    if (automato_emitir(f, nome, regex, &erro) != 0) {
+        diag_erro(0, 0, "expressao regular /%s/ invalida: %s", regex, erro);
+        return -1;
+    }
     return 0;
 }
 
@@ -345,25 +370,61 @@ static int gen_casamento_regex(FILE *f, const char *nome, const char *regex)
  *   Token: tipo = <numero>, lexema = '<texto>', linha = <numero>
  *
  * Ao chegar ao fim do arquivo devolve um token TOKEN_FIM. */
-static void gen_token_de_arquivo(FILE *f, int microc)
+static void gen_token_de_arquivo(FILE *f, const Gramatica *g, int microc)
 {
-    /* TODO(aluno): emitir a leitura real com fgets + sscanf (formato
-     * acima). Linhas em branco sao ignoradas; uma linha malformada deve
-     * ser reportada com o numero da linha do arquivo de tokens. */
-    static const char *const linhas[] = {
-        "static Token token_de_arquivo(void)",
-        "{",
-        "    Token t;",
-        "    memset(&t, 0, sizeof t);",
-        "    fprintf(stderr, \"opcao --tokens ainda nao implementada\\n\");",
-        "    exit(EXIT_FAILURE);",
-        "    return t;",
-        "}",
-        "",
-        NULL
-    };
-    (void) microc;
-    emit_linhas(f, linhas);
+    int i;
+
+    /* tabela nome -> tipo, para aceitar "tipo = INT" alem de "tipo = 36" */
+    fputs("static const struct {\n    const char *nome;\n    int tipo;\n} nomes_de_tipo[] = {\n", f);
+    for (i = 0; i < g->nterms; i++)
+        fprintf(f, "    { \"%s\", %s },\n", g->terms[i].nome_c, g->terms[i].nome_c);
+    fputs("    { NULL, 0 }\n};\n\n", f);
+
+    fputs("static int linha_arquivo_tokens = 0;\n\n", f);
+    fputs("static Token token_de_arquivo(void)\n{\n", f);
+    fputs("    char buf[512], nome[64], *p, *q, *r, *fim;\n", f);
+    fputs("    long tipo = -1, linha;\n    size_t n, k;\n    int i;\n    Token t;\n\n", f);
+    fputs("    memset(&t, 0, sizeof t);\n", f);
+    fputs("    while (fgets(buf, sizeof buf, arquivo_tokens) != NULL) {\n", f);
+    fputs("        linha_arquivo_tokens++;\n        p = buf;\n", f);
+    fputs("        while (*p == ' ' || *p == '\\t' || *p == '\\r' || *p == '\\n')\n", f);
+    fputs("            p++;\n", f);
+    fputs("        if (*p == '\\0')\n            continue;            /* linha em branco */\n", f);
+    fputs("        /* Token: tipo = <numero ou nome>[,] lexema = '<texto>'[,] linha = <numero> */\n", f);
+    fputs("        if (strncmp(p, \"Token:\", 6) != 0 || (p = strstr(p, \"tipo =\")) == NULL)\n", f);
+    fputs("            goto malformada;\n", f);
+    fputs("        p += 6;\n        while (*p == ' ')\n            p++;\n", f);
+    fputs("        if (*p >= '0' && *p <= '9') {\n", f);
+    fputs("            tipo = strtol(p, &fim, 10);\n", f);
+    fputs("        } else {\n", f);
+    fputs("            for (k = 0; (*p >= 'A' && *p <= 'Z') || (*p >= 'a' && *p <= 'z')\n", f);
+    fputs("                        || (*p >= '0' && *p <= '9') || *p == '_'; p++)\n", f);
+    fputs("                if (k < sizeof nome - 1)\n                    nome[k++] = *p;\n", f);
+    fputs("            nome[k] = '\\0';\n            fim = p;\n", f);
+    fputs("            for (i = 0; nomes_de_tipo[i].nome != NULL; i++)\n", f);
+    fputs("                if (strcmp(nomes_de_tipo[i].nome, nome) == 0)\n", f);
+    fputs("                    tipo = nomes_de_tipo[i].tipo;\n", f);
+    fputs("            if (tipo < 0)\n                goto malformada;\n        }\n", f);
+    fputs("        if ((p = strstr(fim, \"lexema = '\")) == NULL)\n            goto malformada;\n", f);
+    fputs("        p += 10;\n", f);
+    fputs("        q = NULL;               /* ultimo \"linha =\" da linha */\n", f);
+    fputs("        for (r = p; (r = strstr(r, \"linha =\")) != NULL; r++)\n            q = r;\n", f);
+    fputs("        if (q == NULL)\n            goto malformada;\n", f);
+    fputs("        r = q;                  /* recua ate o apostrofo que fecha o lexema */\n", f);
+    fputs("        while (r > p && (r[-1] == ' ' || r[-1] == ','))\n            r--;\n", f);
+    fputs("        if (r <= p || r[-1] != '\\'')\n            goto malformada;\n", f);
+    fputs("        n = (size_t) (r - 1 - p);\n", f);
+    fputs("        linha = strtol(q + 7, &fim, 10);\n", f);
+    fputs("        if (fim == q + 7)\n            goto malformada;\n", f);
+    fputs("        if (n >= sizeof t.lexema)\n            n = sizeof t.lexema - 1;\n", f);
+    fputs("        memcpy(t.lexema, p, n);\n        t.lexema[n] = '\\0';\n", f);
+    fprintf(f, "        t.tipo = %s tipo;\n", microc ? "(TokenType)" : "(int)");
+    fputs("        t.linha = (int) linha;\n        return t;\n    }\n", f);
+    fputs("    t.tipo = TOKEN_FIM;\n    t.linha = linha_arquivo_tokens;\n    return t;\n\n", f);
+    fputs("malformada:\n", f);
+    fputs("    fprintf(stderr, \"arquivo de tokens, linha %d: formato invalido\\n\",\n", f);
+    fputs("            linha_arquivo_tokens);\n", f);
+    fputs("    exit(EXIT_FAILURE);\n    return t;\n}\n\n", f);
 }
 
 /* ------------------------------------------------------------------ */
@@ -807,7 +868,7 @@ static int gerar_c(const Gramatica *g, const OpcoesGeracao *op)
     gerar_nome_token(f, g);
     gerar_posicao_e_avancar(f, op->microc);
     emit_linhas(f, rt_primitivas);
-    gen_token_de_arquivo(f, op->microc);
+    gen_token_de_arquivo(f, g, op->microc);
 
     rewind(corpo);
     while ((c = fgetc(corpo)) != EOF)
