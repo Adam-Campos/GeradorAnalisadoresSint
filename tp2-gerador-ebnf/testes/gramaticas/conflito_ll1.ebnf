@@ -1,3 +1,4 @@
+(* Deve ser RECUSADA: as alternativas de stmt comecam com ID *)
 TOKENS
   ID   = /[a-z]+/ ;
   NUM  = /[0-9]+/ ;

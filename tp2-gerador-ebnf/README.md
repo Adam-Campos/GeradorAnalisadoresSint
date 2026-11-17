@@ -1,5 +1,7 @@
-aluno: <sua_matricula>
-uso_ia: <sim|nao>
+aluno1: Fernando Costa {202319040614}
+aluno2: Mauricio Raquita {202319040460}
+aluno3: Adam Rian Silva Campos{202319040398}
+uso_ia: <sim>
 
 # Compiladores I — Trabalho Prático 2: Gerador de Analisadores Sintáticos Descendentes Recursivos
 

@@ -1,12 +1,10 @@
 ## USO_IA.md
 
-Registre aqui cada uso relevante de ferramentas de IA generativa, como no TP1. Se nenhuma foi usada, deixe apenas a frase:
-
-Nenhuma ferramenta de IA foi utilizada no desenvolvimento deste trabalho.
-
 Modelo de entrada:
 
-    Ferramenta: <ferramenta e modelo>
-    Trecho:     <arquivo ou parte do trabalho>
-    Finalidade: <o que foi pedido, de forma especifica>
-    O que fiz:  <usado integralmente, adaptado ou apenas consultado>
+    Ferramenta: Claude, Sonnet 5.5
+    Trecho:     Automato.c
+    Finalidade: De começo fiz um prompt para o Claude me guiar e ajudar a entender o que  
+    eu precisava fazer no trabalho, sem me entregar código, mas na parte do gerador de código C, pedi uma ajuda a mais para gerar o código do gerador de código.
+
+    O que fiz:  Usado integralmente como um guia e tirador de dúvidas, e usado especificamente para gerar código do gerador de código.
