@@ -1,0 +1,9 @@
+TOKENS
+  A = /a/ ;
+RULES
+  r1 = ;
+  r2 = r1 | ;
+  r3 = ( r1 r2 ) r1 ;
+  r4 = [ { r1 } ] ;
+  r5 = { ( r1 | r2 ) r3 } ;
+  r6 = A | | r1 ;

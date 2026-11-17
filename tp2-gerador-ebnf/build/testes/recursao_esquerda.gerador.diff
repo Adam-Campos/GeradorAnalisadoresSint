@@ -1,0 +1,20 @@
+--- testes/esperado/recursao_esquerda.gerador	2026-11-16 17:10:38.670306543 -0400
++++ build/testes/recursao_esquerda.gerador	2026-11-16 20:07:27.253098624 -0400
+@@ -1,5 +1,12 @@
+-testes/gramaticas/recursao_esquerda.ebnf:10: erro: nao terminal expr tem recursao a esquerda direta
+-testes/gramaticas/recursao_esquerda.ebnf:12: erro: nao terminal lista tem recursao a esquerda indireta
+-testes/gramaticas/recursao_esquerda.ebnf:11: erro: nao terminal term tem recursao a esquerda direta
+-testes/gramaticas/recursao_esquerda.ebnf:13: erro: nao terminal item tem recursao a esquerda indireta
+-status 1
++NAO TERMINAL  ANULAVEL  FIRST / FOLLOW
++inicio        nao       FIRST  = {}
++                        FOLLOW = {}
++expr          nao       FIRST  = {}
++                        FOLLOW = {}
++lista         nao       FIRST  = {}
++                        FOLLOW = {}
++term          nao       FIRST  = {}
++                        FOLLOW = {}
++item          nao       FIRST  = {}
++                        FOLLOW = {}
++status 0

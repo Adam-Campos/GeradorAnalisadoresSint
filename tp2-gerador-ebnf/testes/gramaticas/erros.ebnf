@@ -1,0 +1,8 @@
+TOKENS
+  A = /a/ ;
+RULES
+  e1 = r2 ( r1 ;
+  e2 = [ A } ;
+  e3 = A ) ;
+  e4 = A
+  e5 = A ;

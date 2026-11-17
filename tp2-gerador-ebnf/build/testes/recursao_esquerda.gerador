@@ -1,0 +1,12 @@
+NAO TERMINAL  ANULAVEL  FIRST / FOLLOW
+inicio        nao       FIRST  = {}
+                        FOLLOW = {}
+expr          nao       FIRST  = {}
+                        FOLLOW = {}
+lista         nao       FIRST  = {}
+                        FOLLOW = {}
+term          nao       FIRST  = {}
+                        FOLLOW = {}
+item          nao       FIRST  = {}
+                        FOLLOW = {}
+status 0
